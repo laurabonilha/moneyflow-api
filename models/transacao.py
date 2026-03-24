@@ -1,136 +1,72 @@
-from database import get_connection
+from database import db
+from datetime import datetime
+from sqlalchemy import func
 
+class Transacao(db.Model):
+    __tablename__ = 'transacoes'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    descricao = db.Column(db.String(255), nullable=False)
+    valor = db.Column(db.Float, nullable=False)
+    tipo = db.Column(db.String(20), nullable=False) # 'receita' ou 'despesa'
+    categoria_id = db.Column(db.Integer, db.ForeignKey('categorias.id'))
+    data = db.Column(db.String(20), nullable=False) # YYYY-MM-DD
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relacionamento automático com a tabela Categoria
+    categoria = db.relationship('Categoria', backref='transacoes')
+
+    def to_dict(self):
+        # Mapeia os dados do JOIN igual era feito manualmente no dict() do fetchall()
+        return {
+            "id": self.id,
+            "descricao": self.descricao,
+            "valor": self.valor,
+            "tipo": self.tipo,
+            "data": self.data,
+            "criado_em": self.criado_em.strftime('%Y-%m-%d %H:%M:%S') if self.criado_em else None,
+            "categoria_id": self.categoria_id,
+            "categoria_nome": self.categoria.nome if self.categoria else None,
+            "categoria_icone": self.categoria.icone if self.categoria else None,
+            "categoria_cor": self.categoria.cor if self.categoria else None
+        }
 
 def inserir_transacao(descricao, valor, tipo, categoria_id, data):
-    """
-    Insere uma nova transação no banco.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO transacoes (descricao, valor, tipo, categoria_id, data)
-        VALUES (?, ?, ?, ?, ?)
-    """, (descricao, valor, tipo, categoria_id, data))
-
-    conn.commit()
-    novo_id = cursor.lastrowid
-    conn.close()
-    return novo_id
-
+    nova_transacao = Transacao(
+        descricao=descricao,
+        valor=valor,
+        tipo=tipo,
+        categoria_id=categoria_id,
+        data=data
+    )
+    db.session.add(nova_transacao)
+    db.session.commit()
+    return nova_transacao.id
 
 def listar_transacoes():
-    """
-    Retorna todas as transações com o nome da categoria junto.
-    Aqui usamos JOIN — equivale ao select_related() do Django.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # O JOIN traz os dados da categoria junto com a transação
-    # Assim o front-end recebe tudo em uma única chamada
-    cursor.execute("""
-        SELECT
-            t.id,
-            t.descricao,
-            t.valor,
-            t.tipo,
-            t.data,
-            t.criado_em,
-            t.categoria_id,
-            c.nome  AS categoria_nome,
-            c.icone AS categoria_icone,
-            c.cor   AS categoria_cor
-        FROM transacoes t
-        LEFT JOIN categorias c ON t.categoria_id = c.id
-        ORDER BY t.data DESC, t.criado_em DESC
-    """)
-
-    transacoes = cursor.fetchall()
-    conn.close()
-    return [dict(t) for t in transacoes]
-
+    transacoes = Transacao.query.order_by(Transacao.data.desc(), Transacao.criado_em.desc()).all()
+    return [t.to_dict() for t in transacoes]
 
 def buscar_transacao(id):
-    """
-    Retorna uma transação pelo id, com dados da categoria.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT
-            t.id,
-            t.descricao,
-            t.valor,
-            t.tipo,
-            t.data,
-            t.criado_em,
-            t.categoria_id,
-            c.nome  AS categoria_nome,
-            c.icone AS categoria_icone,
-            c.cor   AS categoria_cor
-        FROM transacoes t
-        LEFT JOIN categorias c ON t.categoria_id = c.id
-        WHERE t.id = ?
-    """, (id,))
-
-    transacao = cursor.fetchone()
-    conn.close()
-
-    if transacao is None:
-        return None
-
-    return dict(transacao)
-
+    t = Transacao.query.get(id)
+    return t.to_dict() if t else None
 
 def listar_por_mes(ano, mes):
-    """
-    Filtra transações por mês e ano.
-    Usa strftime do SQLite para extrair mês e ano do campo data.
-    Equivale ao filter(data__year=ano, data__month=mes) do Django.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
+    # strftime com sqlite funciona convertendo a coluna p/ ano e mes
+    mes_str = str(mes).zfill(2)
+    ano_str = str(ano)
 
-    cursor.execute("""
-        SELECT
-            t.id,
-            t.descricao,
-            t.valor,
-            t.tipo,
-            t.data,
-            t.criado_em,
-            t.categoria_id,
-            c.nome  AS categoria_nome,
-            c.icone AS categoria_icone,
-            c.cor   AS categoria_cor
-        FROM transacoes t
-        LEFT JOIN categorias c ON t.categoria_id = c.id
-        WHERE strftime('%Y', t.data) = ?
-          AND strftime('%m', t.data) = ?
-        ORDER BY t.data DESC
-    """, (str(ano), str(mes).zfill(2)))
-    # zfill(2) garante que o mês tenha 2 dígitos: 3 → "03"
-
-    transacoes = cursor.fetchall()
-    conn.close()
-    return [dict(t) for t in transacoes]
-
+    transacoes = Transacao.query.filter(
+        func.strftime('%Y', Transacao.data) == ano_str,
+        func.strftime('%m', Transacao.data) == mes_str
+    ).order_by(Transacao.data.desc()).all()
+    
+    return [t.to_dict() for t in transacoes]
 
 def deletar_transacao(id):
-    """
-    Deleta uma transação pelo id.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id FROM transacoes WHERE id = ?", (id,))
-    if cursor.fetchone() is None:
-        conn.close()
+    t = Transacao.query.get(id)
+    if not t:
         return False
-
-    cursor.execute("DELETE FROM transacoes WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
+    db.session.delete(t)
+    db.session.commit()
     return True

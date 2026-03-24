@@ -1,55 +1,23 @@
-import sqlite3
+from flask_sqlalchemy import SQLAlchemy
+import os
 
-# Nome do arquivo do banco de dados
-DATABASE = 'moneyflow.db'
+db = SQLAlchemy()
 
-
-def get_connection():
+def init_db(app):
     """
-    Abre e retorna uma conexão com o banco SQLite.
+    Cria a conexão inicial do SQLAlchemy com a integração do Flask.
     """
-    conn = sqlite3.connect(DATABASE)
+    # Define o path do sqlite na mesma pasta que já estava
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'moneyflow.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    db.init_app(app)
 
-    # Isso faz o SQLite retornar as linhas como dicionários
-    # ex: {"id": 1, "nome": "Alimentação"} ao invés de (1, "Alimentação")
-    # Equivale ao cursor_factory=RealDictCursor do Django/Postgres
-    conn.row_factory = sqlite3.Row
-
-    return conn
-
-
-def init_db():
-    """
-    Cria as tabelas no banco se elas ainda não existirem.
-    Equivale ao 'migrate' do Django.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # Tabela de categorias
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS categorias (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome      TEXT NOT NULL,
-            icone     TEXT,
-            cor       TEXT
-        )
-    """)
-
-    # Tabela de transações — note o FOREIGN KEY referenciando categorias
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transacoes (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            descricao    TEXT NOT NULL,
-            valor        REAL NOT NULL,
-            tipo         TEXT NOT NULL CHECK(tipo IN ('receita', 'despesa')),
-            categoria_id INTEGER,
-            data         TEXT NOT NULL,
-            criado_em    TEXT DEFAULT (datetime('now', 'localtime')),
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-    print("✅ Banco de dados inicializado com sucesso!")
+    with app.app_context():
+        # Import models inside so that they are registered on the metadata
+        from models.categoria import Categoria
+        from models.transacao import Transacao
+        
+        db.create_all()
+        print("✅ Banco de dados inicializado via SQLAlchemy com sucesso!")
