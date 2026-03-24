@@ -11,6 +11,45 @@ categorias_bp = Blueprint('categorias', __name__)
 
 @categorias_bp.route('/categorias', methods=['POST'])
 def criar_categoria():
+    """
+    Cria uma nova categoria
+    ---
+    tags:
+      - Categorias
+    parameters:
+      - in: body
+        name: body
+        description: Dados da nova categoria
+        required: true
+        schema:
+          type: object
+          required:
+            - nome
+          properties:
+            nome:
+              type: string
+              example: "Lazer"
+            icone:
+              type: string
+              example: "🏖️"
+            cor:
+              type: string
+              example: "#ff5733"
+    responses:
+      201:
+        description: Categoria criada com sucesso
+        schema:
+          type: object
+          properties:
+            mensagem:
+              type: string
+              example: "Categoria criada com sucesso!"
+            id:
+              type: integer
+              example: 1
+      400:
+        description: Dados inválidos
+    """
     dados = request.get_json()
 
     # Validação dos campos obrigatórios
@@ -31,12 +70,70 @@ def criar_categoria():
 
 @categorias_bp.route('/categorias', methods=['GET'])
 def get_categorias():
+    """
+    Lista todas as categorias
+    ---
+    tags:
+      - Categorias
+    responses:
+      200:
+        description: Lista de categorias retornada com sucesso
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              nome:
+                type: string
+                example: "Alimentação"
+              icone:
+                type: string
+                example: "🍔"
+              cor:
+                type: string
+                example: "#ff0000"
+    """
     categorias = listar_categorias()
     return jsonify(categorias), 200
 
 
 @categorias_bp.route('/categorias/<int:id>', methods=['GET'])
 def get_categoria(id):
+    """
+    Busca uma categoria específica pelo ID
+    ---
+    tags:
+      - Categorias
+    parameters:
+      - in: path
+        name: id
+        type: integer
+        required: true
+        description: ID da categoria
+    responses:
+      200:
+        description: Detalhes da categoria retornados com sucesso
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            nome:
+              type: string
+              example: "Alimentação"
+            icone:
+              type: string
+              example: "🍔"
+            cor:
+              type: string
+              example: "#ff0000"
+      404:
+        description: Categoria não encontrada
+    """
     categoria = buscar_categoria(id)
 
     if categoria is None:
@@ -47,6 +144,35 @@ def get_categoria(id):
 
 @categorias_bp.route('/categorias/<int:id>', methods=['DELETE'])
 def delete_categoria(id):
+    """
+    Deleta uma categoria existente
+    ---
+    tags:
+      - Categorias
+    parameters:
+      - in: path
+        name: id
+        type: integer
+        required: true
+        description: ID da categoria a ser deletada
+    responses:
+      200:
+        description: Categoria deletada com sucesso
+        schema:
+          type: object
+          properties:
+            mensagem:
+              type: string
+              example: "Categoria deletada com sucesso!"
+      404:
+        description: Categoria não encontrada
+        schema:
+          type: object
+          properties:
+            erro:
+              type: string
+              example: "Categoria não encontrada"
+    """
     deletado = deletar_categoria(id)
 
     if not deletado:

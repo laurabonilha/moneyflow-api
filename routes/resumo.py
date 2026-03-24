@@ -6,6 +6,27 @@ resumo_bp = Blueprint('resumo', __name__)
 
 @resumo_bp.route('/resumo', methods=['GET'])
 def get_resumo():
+    """
+    Retorna o resumo financeiro atual
+    ---
+    tags:
+      - Resumo
+    responses:
+      200:
+        description: Resumo financeiro retornado com sucesso
+        schema:
+          type: object
+          properties:
+            total_receitas:
+              type: number
+              example: 5000.00
+            total_despesas:
+              type: number
+              example: 1500.50
+            saldo:
+              type: number
+              example: 3499.50
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -26,6 +47,32 @@ def get_resumo():
 
 @resumo_bp.route('/resumo/categorias', methods=['GET'])
 def get_resumo_categorias():
+    """
+    Retorna o total de despesas agrupado por categoria
+    ---
+    tags:
+      - Resumo
+    responses:
+      200:
+        description: Resumo por categoria retornado com sucesso
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              categoria:
+                type: string
+                example: "Alimentação"
+              cor:
+                type: string
+                example: "#ff0000"
+              icone:
+                type: string
+                example: "🍔"
+              total:
+                type: number
+                example: 450.00
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
