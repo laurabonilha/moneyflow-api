@@ -3,7 +3,8 @@ from models.categoria import (
     inserir_categoria,
     listar_categorias,
     buscar_categoria,
-    deletar_categoria
+    deletar_categoria,
+    buscar_categoria_por_nome
 )
 
 categorias_bp = Blueprint('categorias', __name__)
@@ -49,6 +50,8 @@ def criar_categoria():
               example: 1
       400:
         description: Dados inválidos
+      409:
+        description: Categoria já existente
     """
     dados = request.get_json()
 
@@ -56,8 +59,17 @@ def criar_categoria():
     if not dados or not dados.get('nome'):
         return jsonify({'erro': 'Campo nome é obrigatório'}), 400
 
+    nome = dados.get('nome').strip()
+    
+    if not nome:
+        return jsonify({'erro': 'Campo nome é obrigatório e não pode conter apenas espaços'}), 400
+
+    # Verifica se já existe uma categoria com o mesmo nome
+    if buscar_categoria_por_nome(nome):
+        return jsonify({'erro': f"A categoria '{nome}' já está cadastrada"}), 409
+
     novo_id = inserir_categoria(
-        nome=dados.get('nome'),
+        nome=nome,
         icone=dados.get('icone', '📦'),
         cor=dados.get('cor', '#CCCCCC')
     )

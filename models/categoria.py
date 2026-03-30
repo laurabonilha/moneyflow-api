@@ -30,6 +30,14 @@ def buscar_categoria(id):
     categoria = Categoria.query.get(id)
     return categoria.to_dict() if categoria else None
 
+def buscar_categoria_por_nome(nome):
+    nome_buscado = nome.strip().lower()
+    todas_categorias = Categoria.query.all()
+    for cat in todas_categorias:
+        if cat.nome.strip().lower() == nome_buscado:
+            return cat.to_dict()
+    return None
+
 def deletar_categoria(id):
     categoria = Categoria.query.get(id)
     if not categoria:
