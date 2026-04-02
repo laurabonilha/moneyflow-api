@@ -1,6 +1,6 @@
 # MoneyFlow API 💸
 
-**MoneyFlow API** é o backend do sistema MoneyFlow, uma aplicação voltada para o controle financeiro pessoal. Desenvolvida em **Python** utilizando o microframework **Flask**, esta API fornece todos os endpoints necessários para o gerenciamento de transações (receitas e despesas), organização por categorias personalizadas e visualização de resumos financeiros.
+**MoneyFlow API** é o backend do sistema MoneyFlow, uma aplicação voltada para o controle financeiro pessoal. Desenvolvida em **Python** utilizando o microframework **Flask** com **flask_openapi3** e **Pydantic**, esta API fornece todos os endpoints necessários para o gerenciamento de transações (receitas e despesas), organização por categorias personalizadas e visualização de resumos financeiros.
 
 ---
 
@@ -9,7 +9,8 @@
 - **Transações:** Cadastro, listagem, exclusão e busca de receitas e despesas.
 - **Categorias:** Criação de categorias personalizadas (com ícone e cor) para organização das finanças.
 - **Resumos:** Cálculo automático de saldos totais, controle de despesas agrupadas por categorias e possibilidade de buscar relatórios por mês específico.
-- **Documentação Interativa (Swagger):** API totalmente documentada via Swagger/OpenAPI.
+- **Documentação Interativa (Swagger):** API totalmente documentada via OpenAPI 3.1, com suporte a Swagger, Redoc e RapiDoc.
+- **Validação Automática:** Validação dos dados de entrada via Pydantic Schemas.
 
 ---
 
@@ -17,8 +18,10 @@
 
 - **Python 3.x**
 - **Flask** (Microframework Web)
-- **SQLite3** (Banco de Dados relacional nativo)
-- **Flasgger** (Geração da documentação Swagger)
+- **flask_openapi3** (Geração automática da documentação OpenAPI/Swagger)
+- **Pydantic** (Validação de dados e definição de schemas)
+- **Flask-SQLAlchemy** (ORM para integração com banco de dados)
+- **SQLite3** (Banco de Dados relacional)
 - **Flask-CORS** (Integração e permissão de acesso com o Front-end)
 
 ---
@@ -83,13 +86,15 @@ Nesta API web, você tem as seguintes capacidades divididas por entidades de neg
 
 **Transações:**
 - `GET /transacoes` - Lista todas as transações de receitas e despesas.
-- `POST /transacoes` - Cadastra uma nova transação.
+- `POST /transacoes` - Cadastra uma nova transação (validada via `TransacaoSchema`).
+- `GET /transacoes/<id>` - Busca uma transação específica pelo ID.
 - `GET /transacoes/mes/<ano>/<mes>` - Filtra o extrato de transações de um mês e ano específicos.
 - `DELETE /transacoes/<id>` - Estorna/Exclui um registro.
 
 **Categorias:**
 - `GET /categorias` - Lista todas as categorias (Ex: Moradia, Alimentação, Lazer).
-- `POST /categorias` - Cria uma categoria com ícone e cores customizados.
+- `POST /categorias` - Cria uma categoria com ícone e cores customizados (validada via `CategoriaSchema`).
+- `GET /categorias/<id>` - Busca uma categoria específica pelo ID.
 - `DELETE /categorias/<id>` - Remove uma categoria do sistema.
 
 **Resumos (Dashboards):**
@@ -100,13 +105,18 @@ Nesta API web, você tem as seguintes capacidades divididas por entidades de neg
 
 ## 📚 Documentação da API (Swagger/OpenAPI)
 
-A demonstração e documentação completas dos endpoints podem ser acessadas de forma interativa diretamente pelo navegador através da interface do Swagger. 
+A documentação completa dos endpoints é gerada automaticamente a partir dos **Pydantic Schemas** e pode ser acessada de forma interativa pelo navegador.
 
 Com a aplicação rodando (etapa 4), acesse o seguinte endereço no seu navegador:
 
-👉 **[http://127.0.0.1:5000/apidocs/](http://127.0.0.1:5000/apidocs/)**
+👉 **[http://127.0.0.1:5000/openapi](http://127.0.0.1:5000/openapi)**
 
-Lá você encontrará a descrição de cada rota da API, os métodos HTTP permitidos (GET, POST, DELETE), além da estrutura exata esperada em cada requisição e cada resposta!
+Você poderá escolher entre três estilos de documentação:
+- **Swagger** — Interface interativa clássica para testar endpoints
+- **Redoc** — Documentação legível e organizada
+- **RapiDoc** — Interface moderna e customizável
+
+Lá você encontrará a descrição de cada rota da API, os métodos HTTP permitidos (GET, POST, DELETE), além da estrutura exata esperada (schemas) em cada requisição e resposta!
 
 ---
 
@@ -115,19 +125,26 @@ Lá você encontrará a descrição de cada rota da API, os métodos HTTP permit
 ```
 moneyflow-api/
 │
-├── app.py                  # Arquivo principal – inicializa o Flask, Swagger e registra os Blueprints
-├── database.py             # Conexão e helpers do banco de dados SQLite
+├── app.py                  # Arquivo principal – inicializa o OpenAPI, CORS e registra os APIBlueprints
+├── database.py             # Conexão do SQLAlchemy com o banco de dados SQLite
 ├── requirements.txt        # Lista de dependências do projeto (pip)
 ├── moneyflow.db            # Banco de dados SQLite (criado automaticamente na 1ª execução)
 ├── .gitignore              # Regras de arquivos ignorados pelo Git
 ├── README.md               # Documentação do projeto (este arquivo)
 │
-├── models/                 # Camada de modelos – regras de negócio e persistência
+├── models/                 # Camada de modelos – definição das tabelas do banco de dados
 │   ├── __init__.py         # Inicializador do pacote models
-│   ├── categoria.py        # Modelo de Categoria (CRUD no banco)
-│   └── transacao.py        # Modelo de Transação (CRUD no banco)
+│   ├── categoria.py        # Modelo SQLAlchemy da tabela Categoria
+│   └── transacao.py        # Modelo SQLAlchemy da tabela Transação
 │
-└── routes/                 # Camada de rotas – Blueprints Flask (endpoints da API)
+├── schemas/                # Camada de schemas – validação e formatação de dados (Pydantic)
+│   ├── __init__.py         # Exporta todos os schemas para uso nas rotas
+│   ├── categoria.py        # Schemas de entrada, saída e busca de Categorias
+│   ├── transacao.py        # Schemas de entrada, saída e busca de Transações
+│   ├── resumo.py           # Schemas de resposta dos resumos financeiros
+│   └── error.py            # Schema padrão para respostas de erro
+│
+└── routes/                 # Camada de rotas – APIBlueprints Flask (endpoints da API)
     ├── __init__.py          # Inicializador do pacote routes
     ├── categorias.py        # Rotas de Categorias   (GET, POST, DELETE)
     ├── transacoes.py        # Rotas de Transações   (GET, POST, DELETE)
@@ -138,10 +155,11 @@ moneyflow-api/
 
 | Camada | Responsabilidade |
 |--------|-----------------|
-| **`app.py`** | Ponto de entrada da aplicação. Configura o Flask, habilita o CORS, inicializa o Flasgger (Swagger) e registra os Blueprints de rotas. |
-| **`database.py`** | Gerencia a conexão com o banco SQLite (`moneyflow.db`), fornecendo funções utilitárias para acesso ao banco. |
-| **`models/`** | Contém a lógica de negócio e as operações de persistência (queries SQL) para cada entidade — `Categoria` e `Transação`. |
-| **`routes/`** | Define os endpoints REST da API organizados por domínio, utilizando o padrão de **Blueprints** do Flask. |
+| **`app.py`** | Ponto de entrada da aplicação. Configura o `OpenAPI` (flask_openapi3), habilita o CORS e registra os APIBlueprints de rotas. |
+| **`database.py`** | Gerencia a conexão do Flask-SQLAlchemy com o banco SQLite (`moneyflow.db`) e cria as tabelas automaticamente. |
+| **`models/`** | Define a estrutura das tabelas do banco de dados (colunas, tipos e relacionamentos) usando SQLAlchemy. |
+| **`schemas/`** | Define os formatos de entrada e saída da API usando Pydantic. Responsável pela validação automática dos dados e geração da documentação OpenAPI. |
+| **`routes/`** | Define os endpoints REST da API organizados por domínio, utilizando o padrão de **APIBlueprints** do flask_openapi3. |
 
 ---
 Feito com ❤️ para o controle eficiente do seu dinheiro.

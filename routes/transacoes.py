@@ -1,260 +1,116 @@
-from flask import Blueprint, jsonify, request
-from models.transacao import (
-    inserir_transacao,
-    listar_transacoes,
-    buscar_transacao,
-    listar_por_mes,
-    deletar_transacao
+from flask_openapi3 import APIBlueprint, Tag
+
+from database import db
+from models.transacao import Transacao
+
+from schemas import (
+    TransacaoSchema,
+    TransacaoViewSchema,
+    TransacaoBuscaSchema,
+    TransacaoMesSchema,
+    TransacaoDelSchema,
+    ListagemTransacoesSchema,
+    ErrorSchema,
+    apresenta_transacao,
+    apresenta_transacoes,
 )
 
-transacoes_bp = Blueprint('transacoes', __name__)
+transacao_tag = Tag(name="Transação", description="Adição, visualização e remoção de transações à base")
+transacoes_bp = APIBlueprint('transacoes', __name__)
 
 
-@transacoes_bp.route('/transacoes', methods=['POST'])
-def criar_transacao():
+@transacoes_bp.post('/transacoes', tags=[transacao_tag],
+                    responses={"201": TransacaoViewSchema, "400": ErrorSchema})
+def criar_transacao(form: TransacaoSchema):
+    """Adiciona uma nova Transação à base de dados
+
+    Retorna uma representação da transação criada.
     """
-    Cria uma nova transação
-    ---
-    tags:
-      - Transações
-    parameters:
-      - in: body
-        name: body
-        description: Dados da nova transação
-        required: true
-        schema:
-          type: object
-          required:
-            - descricao
-            - valor
-            - tipo
-            - data
-          properties:
-            descricao:
-              type: string
-              example: "Compra no mercado"
-            valor:
-              type: number
-              example: 150.50
-            tipo:
-              type: string
-              enum: [receita, despesa]
-              example: "despesa"
-            categoria_id:
-              type: integer
-              example: 1
-            data:
-              type: string
-              format: date
-              example: "2023-10-15"
-    responses:
-      201:
-        description: Transação criada com sucesso
-        schema:
-          type: object
-          properties:
-            mensagem:
-              type: string
-              example: "Transação criada com sucesso!"
-            id:
-              type: integer
-              example: 1
-      400:
-        description: Dados inválidos
-    """
-    dados = request.get_json()
+    if form.tipo not in ['receita', 'despesa']:
+        return {"erro": "Tipo deve ser receita ou despesa"}, 400
 
-    # Validação dos campos obrigatórios
-    campos = ['descricao', 'valor', 'tipo', 'data']
-    for campo in campos:
-        if not dados or not dados.get(campo):
-            return jsonify({'erro': f'Campo {campo} é obrigatório'}), 400
-
-    if dados['tipo'] not in ['receita', 'despesa']:
-        return jsonify({'erro': 'Tipo deve ser receita ou despesa'}), 400
-
-    novo_id = inserir_transacao(
-        descricao=dados['descricao'],
-        valor=float(dados['valor']),
-        tipo=dados['tipo'],
-        categoria_id=dados.get('categoria_id'),
-        data=dados['data']
+    transacao = Transacao(
+        descricao=form.descricao,
+        valor=form.valor,
+        tipo=form.tipo,
+        categoria_id=form.categoria_id,
+        data=form.data
     )
+    db.session.add(transacao)
+    db.session.commit()
 
-    return jsonify({
-        'mensagem': 'Transação criada com sucesso!',
-        'id': novo_id
-    }), 201
+    return apresenta_transacao(transacao), 201
 
 
-@transacoes_bp.route('/transacoes', methods=['GET'])
+@transacoes_bp.get('/transacoes', tags=[transacao_tag],
+                   responses={"200": ListagemTransacoesSchema})
 def get_transacoes():
+    """Faz a busca por todas as Transações cadastradas
+
+    Retorna uma representação da listagem de transações.
     """
-    Lista todas as transações
-    ---
-    tags:
-      - Transações
-    responses:
-      200:
-        description: Lista de transações retornada com sucesso
-        schema:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-                example: 1
-              descricao:
-                type: string
-                example: "Salário"
-              valor:
-                type: number
-                example: 5000.00
-              tipo:
-                type: string
-                example: "receita"
-              data:
-                type: string
-                example: "2023-10-01"
-              categoria_id:
-                type: integer
-                example: 2
+    transacoes = Transacao.query.order_by(
+        Transacao.data.desc(), Transacao.criado_em.desc()
+    ).all()
+
+    if not transacoes:
+        return {"transacoes": []}, 200
+
+    return apresenta_transacoes(transacoes), 200
+
+
+@transacoes_bp.get('/transacoes/<int:id>', tags=[transacao_tag],
+                   responses={"200": TransacaoViewSchema, "404": ErrorSchema})
+def get_transacao(path: TransacaoBuscaSchema):
+    """Faz a busca por uma Transação a partir do id
+
+    Retorna uma representação da transação.
     """
-    transacoes = listar_transacoes()
-    return jsonify(transacoes), 200
+    transacao = Transacao.query.get(path.id)
+
+    if not transacao:
+        return {"erro": "Transação não encontrada"}, 404
+
+    return apresenta_transacao(transacao), 200
 
 
-@transacoes_bp.route('/transacoes/<int:id>', methods=['GET'])
-def get_transacao(id):
+@transacoes_bp.get('/transacoes/mes/<int:ano>/<int:mes>', tags=[transacao_tag],
+                   responses={"200": ListagemTransacoesSchema, "400": ErrorSchema})
+def get_transacoes_mes(path: TransacaoMesSchema):
+    """Faz a busca por Transações de um mês e ano específicos
+
+    Retorna uma representação da listagem de transações do período.
     """
-    Busca uma transação específica pelo ID
-    ---
-    tags:
-      - Transações
-    parameters:
-      - in: path
-        name: id
-        type: integer
-        required: true
-        description: ID da transação
-    responses:
-      200:
-        description: Detalhes da transação retornados com sucesso
-        schema:
-          type: object
-          properties:
-            id:
-              type: integer
-              example: 1
-            descricao:
-              type: string
-              example: "Salário"
-            valor:
-              type: number
-              example: 5000.00
-            tipo:
-              type: string
-              example: "receita"
-            data:
-              type: string
-              example: "2023-10-01"
-            categoria_id:
-              type: integer
-              example: 2
-      404:
-        description: Transação não encontrada
+    if path.mes < 1 or path.mes > 12:
+        return {"erro": "Mês inválido"}, 400
+
+    mes_str = str(path.mes).zfill(2)
+    ano_str = str(path.ano)
+
+    transacoes = Transacao.query.filter(
+        db.func.strftime('%Y', Transacao.data) == ano_str,
+        db.func.strftime('%m', Transacao.data) == mes_str
+    ).order_by(Transacao.data.desc()).all()
+
+    if not transacoes:
+        return {"transacoes": []}, 200
+
+    return apresenta_transacoes(transacoes), 200
+
+
+@transacoes_bp.delete('/transacoes/<int:id>', tags=[transacao_tag],
+                      responses={"200": TransacaoDelSchema, "404": ErrorSchema})
+def delete_transacao(path: TransacaoBuscaSchema):
+    """Deleta uma Transação a partir do id informado
+
+    Retorna uma mensagem de confirmação da remoção.
     """
-    transacao = buscar_transacao(id)
+    transacao = Transacao.query.get(path.id)
 
-    if transacao is None:
-        return jsonify({'erro': 'Transação não encontrada'}), 404
+    if not transacao:
+        return {"erro": "Transação não encontrada"}, 404
 
-    return jsonify(transacao), 200
+    db.session.delete(transacao)
+    db.session.commit()
 
-
-@transacoes_bp.route('/transacoes/mes/<int:ano>/<int:mes>', methods=['GET'])
-def get_transacoes_mes(ano, mes):
-    """
-    Lista transações de um mês e ano específicos
-    ---
-    tags:
-      - Transações
-    parameters:
-      - in: path
-        name: ano
-        type: integer
-        required: true
-        description: Ano (exemplo 2023)
-      - in: path
-        name: mes
-        type: integer
-        required: true
-        description: Mês (1-12)
-    responses:
-      200:
-        description: Transações do mês retornadas com sucesso
-        schema:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-              descricao:
-                type: string
-              valor:
-                type: number
-              tipo:
-                type: string
-              data:
-                type: string
-              categoria_id:
-                type: integer
-      400:
-        description: Mês inválido
-    """
-    if mes < 1 or mes > 12:
-        return jsonify({'erro': 'Mês inválido'}), 400
-
-    transacoes = listar_por_mes(ano, mes)
-    return jsonify(transacoes), 200
-
-
-@transacoes_bp.route('/transacoes/<int:id>', methods=['DELETE'])
-def delete_transacao(id):
-    """
-    Deleta uma transação existente
-    ---
-    tags:
-      - Transações
-    parameters:
-      - in: path
-        name: id
-        type: integer
-        required: true
-        description: ID da transação a ser deletada
-    responses:
-      200:
-        description: Transação deletada com sucesso
-        schema:
-          type: object
-          properties:
-            mensagem:
-              type: string
-              example: "Transação deletada com sucesso!"
-      404:
-        description: Transação não encontrada
-        schema:
-          type: object
-          properties:
-            erro:
-              type: string
-              example: "Transação não encontrada"
-    """
-    deletado = deletar_transacao(id)
-
-    if not deletado:
-        return jsonify({'erro': 'Transação não encontrada'}), 404
-
-    return jsonify({'mensagem': 'Transação deletada com sucesso!'}), 200
+    return {"mensagem": "Transação deletada com sucesso!", "id": path.id}, 200

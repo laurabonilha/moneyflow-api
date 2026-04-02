@@ -1,193 +1,96 @@
-from flask import Blueprint, jsonify, request
-from models.categoria import (
-    inserir_categoria,
-    listar_categorias,
-    buscar_categoria,
-    deletar_categoria,
-    buscar_categoria_por_nome
+from flask_openapi3 import APIBlueprint, Tag
+
+from database import db
+from models.categoria import Categoria
+from schemas import (
+    CategoriaSchema,
+    CategoriaViewSchema,
+    CategoriaBuscaSchema,
+    CategoriaDelSchema,
+    ListagemCategoriasSchema,
+    ErrorSchema,
+    apresenta_categoria,
+    apresenta_categorias,
 )
 
-categorias_bp = Blueprint('categorias', __name__)
+categoria_tag = Tag(name="Categoria", description="Adição, visualização e remoção de categorias à base")
+categorias_bp = APIBlueprint('categorias', __name__)
 
 
-@categorias_bp.route('/categorias', methods=['POST'])
-def criar_categoria():
+@categorias_bp.post('/categorias', tags=[categoria_tag],
+                    responses={"201": CategoriaViewSchema, "409": ErrorSchema, "400": ErrorSchema})
+def criar_categoria(form: CategoriaSchema):
+    """Adiciona uma nova Categoria à base de dados
+
+    Retorna uma representação da categoria criada.
     """
-    Cria uma nova categoria
-    ---
-    tags:
-      - Categorias
-    parameters:
-      - in: body
-        name: body
-        description: Dados da nova categoria
-        required: true
-        schema:
-          type: object
-          required:
-            - nome
-          properties:
-            nome:
-              type: string
-              example: "Lazer"
-            icone:
-              type: string
-              example: "🏖️"
-            cor:
-              type: string
-              example: "#ff5733"
-    responses:
-      201:
-        description: Categoria criada com sucesso
-        schema:
-          type: object
-          properties:
-            mensagem:
-              type: string
-              example: "Categoria criada com sucesso!"
-            id:
-              type: integer
-              example: 1
-      400:
-        description: Dados inválidos
-      409:
-        description: Categoria já existente
-    """
-    dados = request.get_json()
+    nome = form.nome.strip()
 
-    # Validação dos campos obrigatórios
-    if not dados or not dados.get('nome'):
-        return jsonify({'erro': 'Campo nome é obrigatório'}), 400
-
-    nome = dados.get('nome').strip()
-    
     if not nome:
-        return jsonify({'erro': 'Campo nome é obrigatório e não pode conter apenas espaços'}), 400
+        return {"erro": "Campo nome é obrigatório e não pode conter apenas espaços"}, 400
 
-    # Verifica se já existe uma categoria com o mesmo nome
-    if buscar_categoria_por_nome(nome):
-        return jsonify({'erro': f"A categoria '{nome}' já está cadastrada"}), 409
+    # Verifica se já existe uma categoria com o mesmo nome (case-insensitive)
+    categoria_existente = Categoria.query.filter(
+        db.func.lower(Categoria.nome) == nome.lower()
+    ).first()
 
-    novo_id = inserir_categoria(
+    if categoria_existente:
+        return {"erro": f"A categoria '{nome}' já está cadastrada"}, 409
+
+    categoria = Categoria(
         nome=nome,
-        icone=dados.get('icone', '📦'),
-        cor=dados.get('cor', '#CCCCCC')
+        icone=form.icone or "📦",
+        cor=form.cor or "#CCCCCC"
     )
+    db.session.add(categoria)
+    db.session.commit()
 
-    return jsonify({
-        'mensagem': 'Categoria criada com sucesso!',
-        'id': novo_id
-    }), 201
+    return apresenta_categoria(categoria), 201
 
 
-@categorias_bp.route('/categorias', methods=['GET'])
+@categorias_bp.get('/categorias', tags=[categoria_tag],
+                   responses={"200": ListagemCategoriasSchema})
 def get_categorias():
+    """Faz a busca por todas as Categorias cadastradas
+
+    Retorna uma representação da listagem de categorias.
     """
-    Lista todas as categorias
-    ---
-    tags:
-      - Categorias
-    responses:
-      200:
-        description: Lista de categorias retornada com sucesso
-        schema:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-                example: 1
-              nome:
-                type: string
-                example: "Alimentação"
-              icone:
-                type: string
-                example: "🍔"
-              cor:
-                type: string
-                example: "#ff0000"
+    categorias = Categoria.query.order_by(Categoria.nome).all()
+
+    if not categorias:
+        return {"categorias": []}, 200
+
+    return apresenta_categorias(categorias), 200
+
+
+@categorias_bp.get('/categorias/<int:id>', tags=[categoria_tag],
+                   responses={"200": CategoriaViewSchema, "404": ErrorSchema})
+def get_categoria(path: CategoriaBuscaSchema):
+    """Faz a busca por uma Categoria a partir do id
+
+    Retorna uma representação da categoria.
     """
-    categorias = listar_categorias()
-    return jsonify(categorias), 200
+    categoria = Categoria.query.get(path.id)
+
+    if not categoria:
+        return {"erro": "Categoria não encontrada"}, 404
+
+    return apresenta_categoria(categoria), 200
 
 
-@categorias_bp.route('/categorias/<int:id>', methods=['GET'])
-def get_categoria(id):
+@categorias_bp.delete('/categorias/<int:id>', tags=[categoria_tag],
+                      responses={"200": CategoriaDelSchema, "404": ErrorSchema})
+def delete_categoria(path: CategoriaBuscaSchema):
+    """Deleta uma Categoria a partir do id informado
+
+    Retorna uma mensagem de confirmação da remoção.
     """
-    Busca uma categoria específica pelo ID
-    ---
-    tags:
-      - Categorias
-    parameters:
-      - in: path
-        name: id
-        type: integer
-        required: true
-        description: ID da categoria
-    responses:
-      200:
-        description: Detalhes da categoria retornados com sucesso
-        schema:
-          type: object
-          properties:
-            id:
-              type: integer
-              example: 1
-            nome:
-              type: string
-              example: "Alimentação"
-            icone:
-              type: string
-              example: "🍔"
-            cor:
-              type: string
-              example: "#ff0000"
-      404:
-        description: Categoria não encontrada
-    """
-    categoria = buscar_categoria(id)
+    categoria = Categoria.query.get(path.id)
 
-    if categoria is None:
-        return jsonify({'erro': 'Categoria não encontrada'}), 404
+    if not categoria:
+        return {"erro": "Categoria não encontrada"}, 404
 
-    return jsonify(categoria), 200
+    db.session.delete(categoria)
+    db.session.commit()
 
-
-@categorias_bp.route('/categorias/<int:id>', methods=['DELETE'])
-def delete_categoria(id):
-    """
-    Deleta uma categoria existente
-    ---
-    tags:
-      - Categorias
-    parameters:
-      - in: path
-        name: id
-        type: integer
-        required: true
-        description: ID da categoria a ser deletada
-    responses:
-      200:
-        description: Categoria deletada com sucesso
-        schema:
-          type: object
-          properties:
-            mensagem:
-              type: string
-              example: "Categoria deletada com sucesso!"
-      404:
-        description: Categoria não encontrada
-        schema:
-          type: object
-          properties:
-            erro:
-              type: string
-              example: "Categoria não encontrada"
-    """
-    deletado = deletar_categoria(id)
-
-    if not deletado:
-        return jsonify({'erro': 'Categoria não encontrada'}), 404
-
-    return jsonify({'mensagem': 'Categoria deletada com sucesso!'}), 200
+    return {"mensagem": "Categoria deletada com sucesso!", "id": path.id}, 200
