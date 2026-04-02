@@ -110,12 +110,38 @@ Lá você encontrará a descrição de cada rota da API, os métodos HTTP permit
 
 ---
 
-## 📌 Organização do Código
+## 📂 Estrutura do Projeto
 
-- `app.py`: Arquivo principal que inicia a aplicação Flask e as configurações do Swagger e do contexto.
-- `database.py`: Funções responsáveis pela conexão com o SQLite.
-- `models/`: Contém arquivos de regras de negócios e escopo da persistência de dados.
-- `routes/`: Contém os "Blueprints" (rotas separadas) organizados por área (`categorias.py`, `transacoes.py`, `resumo.py`).
+```
+moneyflow-api/
+│
+├── app.py                  # Arquivo principal – inicializa o Flask, Swagger e registra os Blueprints
+├── database.py             # Conexão e helpers do banco de dados SQLite
+├── requirements.txt        # Lista de dependências do projeto (pip)
+├── moneyflow.db            # Banco de dados SQLite (criado automaticamente na 1ª execução)
+├── .gitignore              # Regras de arquivos ignorados pelo Git
+├── README.md               # Documentação do projeto (este arquivo)
+│
+├── models/                 # Camada de modelos – regras de negócio e persistência
+│   ├── __init__.py         # Inicializador do pacote models
+│   ├── categoria.py        # Modelo de Categoria (CRUD no banco)
+│   └── transacao.py        # Modelo de Transação (CRUD no banco)
+│
+└── routes/                 # Camada de rotas – Blueprints Flask (endpoints da API)
+    ├── __init__.py          # Inicializador do pacote routes
+    ├── categorias.py        # Rotas de Categorias   (GET, POST, DELETE)
+    ├── transacoes.py        # Rotas de Transações   (GET, POST, DELETE)
+    └── resumo.py            # Rotas de Resumo/Dashboard (GET)
+```
+
+### Descrição das Camadas
+
+| Camada | Responsabilidade |
+|--------|-----------------|
+| **`app.py`** | Ponto de entrada da aplicação. Configura o Flask, habilita o CORS, inicializa o Flasgger (Swagger) e registra os Blueprints de rotas. |
+| **`database.py`** | Gerencia a conexão com o banco SQLite (`moneyflow.db`), fornecendo funções utilitárias para acesso ao banco. |
+| **`models/`** | Contém a lógica de negócio e as operações de persistência (queries SQL) para cada entidade — `Categoria` e `Transação`. |
+| **`routes/`** | Define os endpoints REST da API organizados por domínio, utilizando o padrão de **Blueprints** do Flask. |
 
 ---
 Feito com ❤️ para o controle eficiente do seu dinheiro.
