@@ -21,20 +21,20 @@ transacoes_bp = APIBlueprint('transacoes', __name__)
 
 @transacoes_bp.post('/transacoes', tags=[transacao_tag],
                     responses={"201": TransacaoViewSchema, "400": ErrorSchema})
-def criar_transacao(form: TransacaoSchema):
+def criar_transacao(body: TransacaoSchema):
     """Adiciona uma nova Transação à base de dados
 
     Retorna uma representação da transação criada.
     """
-    if form.tipo not in ['receita', 'despesa']:
+    if body.tipo not in ['receita', 'despesa']:
         return {"erro": "Tipo deve ser receita ou despesa"}, 400
 
     transacao = Transacao(
-        descricao=form.descricao,
-        valor=form.valor,
-        tipo=form.tipo,
-        categoria_id=form.categoria_id,
-        data=form.data
+        descricao=body.descricao,
+        valor=body.valor,
+        tipo=body.tipo,
+        categoria_id=body.categoria_id,
+        data=body.data
     )
     db.session.add(transacao)
     db.session.commit()

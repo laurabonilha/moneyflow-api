@@ -19,12 +19,12 @@ categorias_bp = APIBlueprint('categorias', __name__)
 
 @categorias_bp.post('/categorias', tags=[categoria_tag],
                     responses={"201": CategoriaViewSchema, "409": ErrorSchema, "400": ErrorSchema})
-def criar_categoria(form: CategoriaSchema):
+def criar_categoria(body: CategoriaSchema):
     """Adiciona uma nova Categoria à base de dados
 
     Retorna uma representação da categoria criada.
     """
-    nome = form.nome.strip()
+    nome = body.nome.strip()
 
     if not nome:
         return {"erro": "Campo nome é obrigatório e não pode conter apenas espaços"}, 400
@@ -39,8 +39,8 @@ def criar_categoria(form: CategoriaSchema):
 
     categoria = Categoria(
         nome=nome,
-        icone=form.icone or "📦",
-        cor=form.cor or "#CCCCCC"
+        icone=body.icone or "📦",
+        cor=body.cor or "#CCCCCC"
     )
     db.session.add(categoria)
     db.session.commit()
