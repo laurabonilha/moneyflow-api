@@ -2,6 +2,7 @@ from flask_openapi3 import APIBlueprint, Tag
 from flask import jsonify
 
 from database import db
+from logger import logger
 from models.transacao import Transacao
 from models.categoria import Categoria
 from sqlalchemy import func
@@ -21,6 +22,7 @@ def get_resumo():
 
     Retorna o total de receitas, despesas e o saldo.
     """
+    logger.debug("Coletando resumo financeiro geral")
     total_receitas = db.session.query(
         func.coalesce(func.sum(Transacao.valor), 0)
     ).filter(Transacao.tipo == 'receita').scalar()
@@ -30,6 +32,8 @@ def get_resumo():
     ).filter(Transacao.tipo == 'despesa').scalar()
 
     saldo = total_receitas - total_despesas
+
+    logger.debug(f"Resumo coletado. Receitas: {total_receitas}, Despesas: {total_despesas}, Saldo: {saldo}")
 
     return {
         "total_receitas": total_receitas,
@@ -45,6 +49,7 @@ def get_resumo_categorias():
 
     Retorna uma listagem com categoria, cor, ícone e total de despesas.
     """
+    logger.debug("Coletando resumo de despesas por categoria")
     resultados = db.session.query(
         Categoria.nome.label('categoria'),
         Categoria.cor.label('cor'),
@@ -66,4 +71,5 @@ def get_resumo_categorias():
         } for r in resultados
     ]
 
+    logger.debug(f"Resumo por categoria coletado: {len(dados)} categorias encontradas.")
     return jsonify(dados), 200

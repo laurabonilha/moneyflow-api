@@ -1,6 +1,7 @@
 from flask_openapi3 import APIBlueprint, Tag
 
 from database import db
+from logger import logger
 from models.transacao import Transacao
 
 from schemas import (
@@ -27,6 +28,7 @@ def criar_transacao(body: TransacaoSchema):
     Retorna uma representação da transação criada.
     """
     if body.tipo not in ['receita', 'despesa']:
+        logger.warning(f"Erro ao adicionar transação: Tipo '{body.tipo}' inválido")
         return {"erro": "Tipo deve ser receita ou despesa"}, 400
 
     transacao = Transacao(
@@ -36,8 +38,10 @@ def criar_transacao(body: TransacaoSchema):
         categoria_id=body.categoria_id,
         data=body.data
     )
+    logger.debug(f"Adicionando transação: '{transacao.descricao}'")
     db.session.add(transacao)
     db.session.commit()
+    logger.debug(f"Adicionada transação: '{transacao.descricao}'")
 
     return apresenta_transacao(transacao), 201
 
@@ -49,6 +53,7 @@ def get_transacoes():
 
     Retorna uma representação da listagem de transações.
     """
+    logger.debug("Coletando transações")
     transacoes = Transacao.query.order_by(
         Transacao.data.desc(), Transacao.criado_em.desc()
     ).all()
@@ -56,6 +61,7 @@ def get_transacoes():
     if not transacoes:
         return {"transacoes": []}, 200
 
+    logger.debug(f"{len(transacoes)} transações encontradas")
     return apresenta_transacoes(transacoes), 200
 
 
@@ -66,11 +72,15 @@ def get_transacao(path: TransacaoBuscaSchema):
 
     Retorna uma representação da transação.
     """
+    logger.debug(f"Coletando dados sobre transação #{path.id}")
     transacao = Transacao.query.get(path.id)
 
     if not transacao:
-        return {"erro": "Transação não encontrada"}, 404
+        error_msg = "Transação não encontrada"
+        logger.warning(f"Erro ao buscar transação '{path.id}', {error_msg}")
+        return {"erro": error_msg}, 404
 
+    logger.debug(f"Transação encontrada: '{transacao.descricao}'")
     return apresenta_transacao(transacao), 200
 
 
@@ -81,7 +91,9 @@ def get_transacoes_mes(path: TransacaoMesSchema):
 
     Retorna uma representação da listagem de transações do período.
     """
+    logger.debug(f"Coletando transações do mês {path.mes}/{path.ano}")
     if path.mes < 1 or path.mes > 12:
+        logger.warning(f"Erro ao buscar transações: Mês {path.mes} inválido")
         return {"erro": "Mês inválido"}, 400
 
     mes_str = str(path.mes).zfill(2)
@@ -95,6 +107,7 @@ def get_transacoes_mes(path: TransacaoMesSchema):
     if not transacoes:
         return {"transacoes": []}, 200
 
+    logger.debug(f"{len(transacoes)} transações encontradas neste mês")
     return apresenta_transacoes(transacoes), 200
 
 
@@ -105,12 +118,16 @@ def delete_transacao(path: TransacaoBuscaSchema):
 
     Retorna uma mensagem de confirmação da remoção.
     """
+    logger.debug(f"Deletando dados sobre transação #{path.id}")
     transacao = Transacao.query.get(path.id)
 
     if not transacao:
-        return {"erro": "Transação não encontrada"}, 404
+        error_msg = "Transação não encontrada"
+        logger.warning(f"Erro ao deletar transação #'{path.id}', {error_msg}")
+        return {"erro": error_msg}, 404
 
     db.session.delete(transacao)
     db.session.commit()
+    logger.debug(f"Deletada transação #{path.id}")
 
     return {"mensagem": "Transação deletada com sucesso!", "id": path.id}, 200
