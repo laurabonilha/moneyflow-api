@@ -16,3 +16,6 @@ Thumbs.db
 # VS Code / IDEs
 .vscode/
 .idea/
+
+# Logs
+log/
